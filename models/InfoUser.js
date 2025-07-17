@@ -5,7 +5,8 @@ const InfoUserSchema = new mongoose.Schema({
     name: String,
     lastName: String,
     birthdate: String,
-    phone: String
+    phone: String,
+    email: String, // ✅ Agregado
 });
 
 module.exports = mongoose.model('InfoUser', InfoUserSchema);
