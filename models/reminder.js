@@ -5,10 +5,23 @@ const reminderSchema = new mongoose.Schema({
     type: String, // "control" o "medicamento"
     required: true
   },
-  titulo: String,
-  descripcion: String,
-  frecuencia: String, // Diaria, Semanal, Personalizada
-  horarios: [String], // ["8:00 AM", "6:00 PM"]
+  titulo: {
+    type: String,
+    required: true
+  },
+  descripcion: {
+    type: String,
+    required: true
+  },
+  frecuencia: {
+    type: String,
+    enum: ['Diaria', 'Semanal', 'Personalizada'],
+    required: true
+  },
+  horarios: {
+    type: [String], // ["8:00 AM", "6:00 PM"]
+    default: []
+  },
   dosis: Number,
   unidad: String,
   cantidadDisponible: Number,

@@ -3,7 +3,6 @@ const User = require('../models/User');
 const InfoUser = require('../models/InfoUser');
 const sendReminderEmail = require('../utils/sendEmail');
 
-// 👉 Crear un nuevo recordatorio
 const crearRecordatorio = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -24,13 +23,8 @@ const crearRecordatorio = async (req, res) => {
       cantidadDisponible
     } = req.body;
 
-    console.log("✅ userId desde token:", userId);
-
     const info = await InfoUser.findOne({ userId });
     const user = await User.findById(userId);
-
-    console.log("📄 InfoUser encontrado:", info);
-    console.log("👤 User encontrado:", user);
 
     const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
     const usernameEmail = isValidEmail(user?.username) ? user.username : null;
@@ -43,10 +37,10 @@ const crearRecordatorio = async (req, res) => {
 
     const reminder = new Reminder({
       userId,
+      tipo,
       titulo,
       descripcion,
       frecuencia,
-      tipo,
       horarios,
       dosis,
       unidad,
@@ -55,11 +49,17 @@ const crearRecordatorio = async (req, res) => {
 
     await reminder.save();
 
-    await sendReminderEmail(
-      email,
-      '📅 Nuevo recordatorio en CITAMED',
-      `Recordatorio creado:\n\nTítulo: ${titulo}\nDescripción: ${descripcion}\nFrecuencia: ${frecuencia}`
-    );
+    // ✅ Enviar correo con datos completos
+    await sendReminderEmail(email, '📅 Nuevo recordatorio en CITAMED', {
+      tipo,
+      titulo,
+      descripcion,
+      frecuencia,
+      horarios,
+      dosis,
+      unidad,
+      cantidadDisponible
+    });
 
     console.log("✅ Recordatorio creado y correo enviado a:", email);
     res.status(201).json(reminder);
@@ -73,7 +73,6 @@ const crearRecordatorio = async (req, res) => {
   }
 };
 
-// 👉 Obtener recordatorios por ID de usuario
 const obtenerRecordatoriosPorUsuario = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -84,7 +83,6 @@ const obtenerRecordatoriosPorUsuario = async (req, res) => {
   }
 };
 
-// 👉 Eliminar recordatorio por ID
 const eliminarRecordatorio = async (req, res) => {
   try {
     const { id } = req.params;
@@ -95,7 +93,6 @@ const eliminarRecordatorio = async (req, res) => {
   }
 };
 
-// 👉 Actualizar un recordatorio
 const actualizarRecordatorio = async (req, res) => {
   try {
     const { id } = req.params;
