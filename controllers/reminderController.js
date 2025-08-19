@@ -75,13 +75,20 @@ const crearRecordatorio = async (req, res) => {
 
 const obtenerRecordatoriosPorUsuario = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const reminders = await Reminder.find({ userId });
+    const userId = req.user?.id; // ✅ viene del token gracias a authMiddleware
+
+    if (!userId) {
+      return res.status(401).json({ message: "Usuario no autenticado" });
+    }
+
+    const reminders = await Reminder.find({ userId }).sort({ createdAt: -1 }); // más recientes primero
     res.status(200).json(reminders);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener recordatorios', error: error.message });
+    console.error("❌ Error al obtener recordatorios:", error);
+    res.status(500).json({ message: "Error al obtener recordatorios", error: error.message });
   }
 };
+
 
 const eliminarRecordatorio = async (req, res) => {
   try {
