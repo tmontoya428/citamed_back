@@ -2,22 +2,19 @@ const Reminder = require('../models/reminder');
 const User = require('../models/User');
 const InfoUser = require('../models/InfoUser');
 const sendReminderEmail = require('../utils/sendEmail');
+const schedule = require("node-schedule");
 
 const crearRecordatorio = async (req, res) => {
   try {
     const userId = req.user?.id;
-
-    if (!userId) {
-      console.warn("⚠️ Token recibido sin userId");
-      return res.status(401).json({ message: "Token inválido. No se identificó al usuario." });
-    }
+    if (!userId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const {
       titulo,
       descripcion,
       frecuencia,
       tipo,
-      horarios,
+      horarios, // <-- array con horas, ej: ["08:00", "14:00", "20:00"]
       dosis,
       unidad,
       cantidadDisponible
@@ -31,10 +28,10 @@ const crearRecordatorio = async (req, res) => {
     const email = info?.email || usernameEmail;
 
     if (!email) {
-      console.warn("⚠️ Usuario sin correo electrónico asociado");
-      return res.status(400).json({ message: "Usuario sin correo asociado válido" });
+      return res.status(400).json({ message: "Usuario sin correo válido" });
     }
 
+    // Guardar recordatorio en BD
     const reminder = new Reminder({
       userId,
       tipo,
@@ -46,32 +43,39 @@ const crearRecordatorio = async (req, res) => {
       unidad,
       cantidadDisponible
     });
-
     await reminder.save();
 
-    // ✅ Enviar correo con datos completos
-    await sendReminderEmail(email, '📅 Nuevo recordatorio en CITAMED', {
-      tipo,
-      titulo,
-      descripcion,
-      frecuencia,
-      horarios,
-      dosis,
-      unidad,
-      cantidadDisponible
+    // Programar jobs según horarios
+    horarios.forEach((hora) => {
+      const [h, m] = hora.split(":").map(Number);
+      const rule = new schedule.RecurrenceRule();
+      rule.hour = h;
+      rule.minute = m;
+      rule.tz = "America/Bogota"; // ✅ importante para Colombia
+
+      schedule.scheduleJob(rule, async () => {
+        await sendReminderEmail(email, '⏰ Recordatorio de medicamento', {
+          tipo,
+          titulo,
+          descripcion,
+          frecuencia,
+          horarios,
+          dosis,
+          unidad,
+          cantidadDisponible
+        });
+        console.log(`📩 Recordatorio enviado a ${email} a las ${hora}`);
+      });
     });
 
-    console.log("✅ Recordatorio creado y correo enviado a:", email);
     res.status(201).json(reminder);
 
   } catch (error) {
     console.error("❌ Error en crearRecordatorio:", error);
-    res.status(500).json({
-      message: 'Error al crear el recordatorio',
-      error: error.message
-    });
+    res.status(500).json({ message: "Error al crear el recordatorio", error: error.message });
   }
 };
+;
 
 const obtenerRecordatoriosPorUsuario = async (req, res) => {
   try {
