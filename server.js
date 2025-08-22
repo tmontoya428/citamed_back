@@ -7,6 +7,7 @@ const registerUserRoutes = require('./routes/registerUserRoutes');
 const loginRoutes = require('./routes/loginRoutes');
 const adminRegistrationRoutes = require('./routes/adminRegistrationRoutes');
 const reminderRoutes = require('./routes/reminderRoutes'); // ya maneja POST
+const appointmentRoutes = require("./routes/appointmentRoutes");
 
 dotenv.config();
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/register', registerUserRoutes);
 app.use('/api/login', loginRoutes);
 app.use('/api/admin', adminRegistrationRoutes);
 app.use('/api/reminders', reminderRoutes); // aquí va el POST
+app.use("/api/appointments", appointmentRoutes);
 
 // Ruta no encontrada
 app.use((req, res, next) => {
