@@ -5,7 +5,8 @@ const InfoUserSchema = new mongoose.Schema({
     name: String,
     lastName: String,
     birthdate: String,
-    phone: String,
+    phone: { type: String,required: true, match: /^[0-9]{10}$/ 
+    },
     email: String, // ✅ Agregado
 });
 
