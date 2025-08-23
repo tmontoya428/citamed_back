@@ -4,17 +4,20 @@ const InfoUser = require("../models/InfoUser");
 const sendReminderEmail = require("../utils/sendEmail");
 const schedule = require("node-schedule");
 
-// 📌 Crear recordatorio
+
+// 📌 Crear recordatorio (CORREGIDO)
 const crearRecordatorio = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Usuario no autenticado" });
+    if (!userId)
+      return res.status(401).json({ message: "Usuario no autenticado" });
 
     const {
       titulo,
       fecha,
+      fecha_control,
       descripcion,
-      frecuencia,
+      frecuencia, // "Unica", "Diaria", "Semanal"
       tipo,
       horarios,
       dosis,
@@ -23,7 +26,9 @@ const crearRecordatorio = async (req, res) => {
     } = req.body;
 
     if (!horarios || !Array.isArray(horarios) || horarios.length === 0) {
-      return res.status(400).json({ message: "Debes enviar al menos un horario" });
+      return res
+        .status(400)
+        .json({ message: "Debes enviar al menos un horario" });
     }
 
     const info = await InfoUser.findOne({ userId });
@@ -37,12 +42,20 @@ const crearRecordatorio = async (req, res) => {
       return res.status(400).json({ message: "Usuario sin correo válido" });
     }
 
+    // 🔥 Normalizar fecha como Date (NO string)
+    let fechaNormalizada = null;
+    if (fecha) {
+      const f = new Date(fecha);
+      fechaNormalizada = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+    }
+
     // Guardar recordatorio en BD
     const reminder = new Reminder({
       userId,
       tipo,
       titulo,
-      fecha,
+      fecha: fechaNormalizada,
+      fecha_control,
       descripcion,
       frecuencia,
       horarios,
@@ -52,48 +65,102 @@ const crearRecordatorio = async (req, res) => {
     });
     await reminder.save();
 
-    // Programar jobs
+    // 📌 Programar jobs según frecuencia
     horarios.forEach((hora) => {
       const [h, m] = hora.split(":").map(Number);
-      const rule = new schedule.RecurrenceRule();
-      rule.hour = h;
-      rule.minute = m;
-      rule.tz = "America/Bogota";
 
-      schedule.scheduleJob(rule, async () => {
-        await sendReminderEmail(email, "⏰ Recordatorio de medicamento", {
-          tipo,
-          titulo,
-          fecha,
-          descripcion,
-          frecuencia,
-          horarios,
-          dosis,
-          unidad,
-          cantidadDisponible,
+      if (frecuencia === "Unica" || !frecuencia) {
+        const fechaRecordatorio = new Date(fechaNormalizada);
+        fechaRecordatorio.setHours(h, m, 0, 0);
+
+        schedule.scheduleJob(fechaRecordatorio, async () => {
+          await sendReminderEmail(email, "⏰ Recordatorio de medicamento", {
+            tipo,
+            titulo,
+            fecha: fechaNormalizada,
+            fecha_control,
+            descripcion,
+            frecuencia,
+            horarios,
+            dosis,
+            unidad,
+            cantidadDisponible,
+          });
+          console.log(`📩 Recordatorio enviado a ${email} el ${fechaRecordatorio}`);
         });
-        console.log(`📩 Recordatorio enviado a ${email} a las ${hora}`);
-      });
+      } else if (frecuencia === "Diaria") {
+        const rule = new schedule.RecurrenceRule();
+        rule.hour = h;
+        rule.minute = m;
+        rule.tz = "America/Bogota";
+
+        schedule.scheduleJob(rule, async () => {
+          await sendReminderEmail(email, "⏰ Recordatorio diario de medicamento", {
+            tipo,
+            titulo,
+            fecha: new Date(),
+            fecha_control,
+            descripcion,
+            frecuencia,
+            horarios,
+            dosis,
+            unidad,
+            cantidadDisponible,
+          });
+          console.log(`📩 Recordatorio diario enviado a ${email} a las ${hora}`);
+        });
+      } else if (frecuencia === "Semanal") {
+        const rule = new schedule.RecurrenceRule();
+        rule.dayOfWeek = fechaNormalizada.getDay();
+        rule.hour = h;
+        rule.minute = m;
+        rule.tz = "America/Bogota";
+
+        schedule.scheduleJob(rule, async () => {
+          await sendReminderEmail(email, "⏰ Recordatorio semanal de medicamento", {
+            tipo,
+            titulo,
+            fecha: new Date(),
+            fecha_control,
+            descripcion,
+            frecuencia,
+            horarios,
+            dosis,
+            unidad,
+            cantidadDisponible,
+          });
+          console.log(
+            `📩 Recordatorio semanal enviado a ${email} cada ${rule.dayOfWeek} a las ${hora}`
+          );
+        });
+      }
     });
 
     res.status(201).json(reminder);
   } catch (error) {
     console.error("❌ Error en crearRecordatorio:", error);
-    res.status(500).json({ message: "Error al crear el recordatorio", error: error.message });
+    res.status(500).json({
+      message: "Error al crear el recordatorio",
+      error: error.message,
+    });
   }
 };
+
 
 // 📌 Obtener recordatorios del usuario autenticado
 const obtenerRecordatoriosPorUsuario = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Usuario no autenticado" });
+    if (!userId)
+      return res.status(401).json({ message: "Usuario no autenticado" });
 
     const recordatorios = await Reminder.find({ userId });
     res.json(recordatorios);
   } catch (error) {
     console.error("❌ Error en obtenerRecordatorios:", error);
-    res.status(500).json({ message: "Error al obtener los recordatorios" });
+    res
+      .status(500)
+      .json({ message: "Error al obtener los recordatorios" });
   }
 };
 
@@ -102,6 +169,11 @@ const actualizarRecordatorio = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
+
+    if (req.body.fecha) {
+      const f = new Date(req.body.fecha);
+      req.body.fecha = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+    }
 
     const updated = await Reminder.findOneAndUpdate(
       { _id: id, userId },

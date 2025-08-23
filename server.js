@@ -6,7 +6,8 @@ const dotenv = require('dotenv');
 const registerUserRoutes = require('./routes/registerUserRoutes');
 const loginRoutes = require('./routes/loginRoutes');
 const adminRegistrationRoutes = require('./routes/adminRegistrationRoutes');
-const reminderRoutes = require('./routes/reminderRoutes'); // ya maneja POST
+const reminderRoutes = require('./routes/reminderRoutes'); 
+const { cargarRecordatorios } = require("./utils/scheduler");
 
 dotenv.config();
 const app = express();
@@ -17,14 +18,18 @@ app.use(cors());
 
 // Conexión a MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .then(() => {
+        console.log('✅ MongoDB Connected');
+        // 🔥 Cargar recordatorios al iniciar el servidor
+        cargarRecordatorios();
+    })
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Rutas
 app.use('/api/register', registerUserRoutes);
 app.use('/api/login', loginRoutes);
 app.use('/api/admin', adminRegistrationRoutes);
-app.use('/api/reminders', reminderRoutes); // aquí va el POST
+app.use('/api/reminders', reminderRoutes);
 
 // Ruta no encontrada
 app.use((req, res, next) => {
@@ -39,4 +44,4 @@ app.use((err, req, res, next) => {
 
 // Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
