@@ -4,7 +4,6 @@ const InfoUser = require("../models/InfoUser");
 const sendReminderEmail = require("../utils/sendEmail");
 const schedule = require("node-schedule");
 
-
 // 📌 Crear recordatorio (CORREGIDO)
 const crearRecordatorio = async (req, res) => {
   try {
@@ -42,12 +41,21 @@ const crearRecordatorio = async (req, res) => {
       return res.status(400).json({ message: "Usuario sin correo válido" });
     }
 
-    // 🔥 Normalizar fecha como Date (NO string)
-    let fechaNormalizada = null;
-    if (fecha) {
-      const f = new Date(fecha);
-      fechaNormalizada = new Date(f.getFullYear(), f.getMonth(), f.getDate());
-    }
+  // 🔥 Normalizar fecha como Date (seguro)
+let fechaNormalizada = null;
+
+if (fecha && typeof fecha === "string") {
+  const partes = fecha.split("-").map(Number); // ["2025","08","23"] -> [2025,8,23]
+  if (partes.length === 3 && !partes.some(isNaN)) {
+    const [year, month, day] = partes;
+    fechaNormalizada = new Date(year, month - 1, day); // mes 0-index
+  } else {
+    return res.status(400).json({ message: "Fecha inválida" });
+  }
+} else {
+  return res.status(400).json({ message: "Fecha requerida" });
+}
+
 
     // Guardar recordatorio en BD
     const reminder = new Reminder({
@@ -98,7 +106,7 @@ const crearRecordatorio = async (req, res) => {
           await sendReminderEmail(email, "⏰ Recordatorio diario de medicamento", {
             tipo,
             titulo,
-            fecha: new Date(),
+            fecha: fechaNormalizada,
             fecha_control,
             descripcion,
             frecuencia,
@@ -111,7 +119,7 @@ const crearRecordatorio = async (req, res) => {
         });
       } else if (frecuencia === "Semanal") {
         const rule = new schedule.RecurrenceRule();
-        rule.dayOfWeek = fechaNormalizada.getDay();
+        rule.dayOfWeek = new Date(fechaNormalizada).getDay();
         rule.hour = h;
         rule.minute = m;
         rule.tz = "America/Bogota";
@@ -120,7 +128,7 @@ const crearRecordatorio = async (req, res) => {
           await sendReminderEmail(email, "⏰ Recordatorio semanal de medicamento", {
             tipo,
             titulo,
-            fecha: new Date(),
+            fecha: fechaNormalizada,
             fecha_control,
             descripcion,
             frecuencia,
@@ -129,9 +137,7 @@ const crearRecordatorio = async (req, res) => {
             unidad,
             cantidadDisponible,
           });
-          console.log(
-            `📩 Recordatorio semanal enviado a ${email} cada ${rule.dayOfWeek} a las ${hora}`
-          );
+          console.log(`📩 Recordatorio semanal enviado a ${email} cada ${rule.dayOfWeek} a las ${hora}`);
         });
       }
     });
@@ -146,21 +152,17 @@ const crearRecordatorio = async (req, res) => {
   }
 };
 
-
 // 📌 Obtener recordatorios del usuario autenticado
 const obtenerRecordatoriosPorUsuario = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId)
-      return res.status(401).json({ message: "Usuario no autenticado" });
+    if (!userId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const recordatorios = await Reminder.find({ userId });
     res.json(recordatorios);
   } catch (error) {
     console.error("❌ Error en obtenerRecordatorios:", error);
-    res
-      .status(500)
-      .json({ message: "Error al obtener los recordatorios" });
+    res.status(500).json({ message: "Error al obtener los recordatorios" });
   }
 };
 
@@ -171,8 +173,8 @@ const actualizarRecordatorio = async (req, res) => {
     const userId = req.user?.id;
 
     if (req.body.fecha) {
-      const f = new Date(req.body.fecha);
-      req.body.fecha = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+      const [year, month, day] = req.body.fecha.split("-").map(Number);
+      req.body.fecha = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
 
     const updated = await Reminder.findOneAndUpdate(
@@ -181,9 +183,7 @@ const actualizarRecordatorio = async (req, res) => {
       { new: true }
     );
 
-    if (!updated) {
-      return res.status(404).json({ message: "Recordatorio no encontrado" });
-    }
+    if (!updated) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
     res.json(updated);
   } catch (error) {
@@ -199,10 +199,7 @@ const eliminarRecordatorio = async (req, res) => {
     const userId = req.user?.id;
 
     const deleted = await Reminder.findOneAndDelete({ _id: id, userId });
-
-    if (!deleted) {
-      return res.status(404).json({ message: "Recordatorio no encontrado" });
-    }
+    if (!deleted) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
     res.json({ message: "✅ Recordatorio eliminado" });
   } catch (error) {
