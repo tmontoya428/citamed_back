@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require('nodemailer'); 
 const path = require('path');
 require('dotenv').config();
 
@@ -10,12 +10,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-/**
- * Envía un correo electrónico con recordatorio personalizado.
- * @param {string} to - Correo del destinatario.
- * @param {string} subject - Asunto del correo.
- * @param {object} data - Datos del recordatorio.
- */
 const sendReminderEmail = async (to, subject, data = {}) => {
   const {
     tipo,
@@ -26,9 +20,30 @@ const sendReminderEmail = async (to, subject, data = {}) => {
     unidad,
     horarios,
     cantidadDisponible,
+    nombrePersona, // <-- Nombre real de la persona
   } = data;
 
-  let html = `
+  // Generar HTML de horarios separados en Fecha y Hora
+  let horariosHtml = '';
+  if (horarios && horarios.length > 0) {
+    horarios.forEach((h) => {
+      let partes = h.split(' ');
+      let fecha = partes[0];
+      let hora = partes[1] || '';
+      horariosHtml += `<p><strong>Hora:</strong> ${hora}</p><p><strong>Fecha:</strong> ${fecha}</p>`;
+    });
+  }
+
+  // Cambiar "Título" según tipo
+  let tituloLabel = tipo === 'control' ? 'Especialidad' : 'Medicamento';
+
+  // Mensaje especial solo para controles
+  let mensajePersona = '';
+  if (tipo === 'control' && nombrePersona) {
+    mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes una cita pendiente.</p>`;
+  }
+
+  const html = `
     <div style="background-color: #f4f4f4; padding: 40px 0; font-family: Arial, sans-serif; color: #333;">
       <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
         <div style="text-align: center;">
@@ -37,20 +52,14 @@ const sendReminderEmail = async (to, subject, data = {}) => {
         </div>
 
         <div style="margin-top: 20px; font-size: 16px; line-height: 1.6;">
-          <p><strong>Título:</strong> ${titulo}</p>
+          ${mensajePersona}  <!-- mensaje para control -->
+
+          <p><strong>${tituloLabel}:</strong> ${titulo}</p>
           <p><strong>Descripción:</strong> ${descripcion}</p>
-          <p><strong>Frecuencia:</strong> ${frecuencia}</p>`;
-
-// Mostrar campos adicionales para medicamento o control
-if (tipo === 'medicamento' || tipo === 'control') {
-  html += `
-      ${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
-      ${horarios ? `<p><strong>Horario(s):</strong> ${Array.isArray(horarios) ? horarios.join(', ') : horarios}</p>` : ''}
-      ${cantidadDisponible ? `<p><strong>Cantidad disponible:</strong> ${cantidadDisponible}</p>` : ''}`;
-}
-
-
-  html += `
+          <p><strong>Frecuencia:</strong> ${frecuencia}</p>
+          ${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
+          ${horariosHtml}
+          ${cantidadDisponible ? `<p><strong>Cantidad disponible:</strong> ${cantidadDisponible}</p>` : ''}
         </div>
 
         <div style="margin-top: 30px; text-align: center; font-size: 14px; color: #777;">
@@ -69,7 +78,7 @@ if (tipo === 'medicamento' || tipo === 'control') {
       {
         filename: 'logo.png',
         path: path.join(__dirname, '../assets/logo.png'),
-        cid: 'citamedlogo', // debe coincidir con el cid en <img>
+        cid: 'citamedlogo',
       },
     ],
   };
