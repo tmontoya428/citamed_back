@@ -13,7 +13,7 @@ const authMiddleware = require('../middlewares/authMiddleware'); // ⬅️ IMPOR
 router.post('/', authMiddleware, crearRecordatorio);
 
 // ✅ Obtener recordatorios del usuario autenticado
-router.get('/:userId', authMiddleware, obtenerRecordatoriosPorUsuario);
+router.get('/', authMiddleware, obtenerRecordatoriosPorUsuario);
 
 // ✅ Actualizar un recordatorio
 router.put('/:id', authMiddleware, actualizarRecordatorio);
