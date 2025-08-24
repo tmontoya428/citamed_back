@@ -41,7 +41,7 @@ const sendReminderEmail = async (to, subject, data = {}) => {
           <p><strong>Descripción:</strong> ${descripcion}</p>
           <p><strong>Frecuencia:</strong> ${frecuencia}</p>`;
 
-
+// Mostrar campos adicionales para medicamento o control
 if (tipo === 'medicamento' || tipo === 'control') {
   html += `
       ${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
