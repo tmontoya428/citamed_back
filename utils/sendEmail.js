@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 require('dotenv').config();
 
+// 📌 Configuración del transporte
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -10,6 +11,18 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// 📌 Función para formatear fecha y hora en AM/PM
+const formatFechaHora = (date) => {
+  const fecha = date.toLocaleDateString("es-CO");
+  const hora = date.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true, // AM/PM
+  });
+  return { fecha, hora };
+};
+
+// 📌 Enviar correo de recordatorio
 const sendReminderEmail = async (to, subject, data = {}) => {
   const {
     tipo,
@@ -20,22 +33,35 @@ const sendReminderEmail = async (to, subject, data = {}) => {
     unidad,
     horarios,
     cantidadDisponible,
-    nombrePersona, // <-- Nombre real de la persona
+    nombrePersona,
   } = data;
 
-  // Generar HTML de horarios separados en Fecha y Hora
+  // Generar HTML de horarios en Fecha y Hora (AM/PM)
   let horariosHtml = '';
   if (horarios && horarios.length > 0) {
     horarios.forEach((h) => {
-      let partes = h.split(' ');
-      let fecha = partes[0];
-      let hora = partes[1] || '';
+      let fecha = '';
+      let hora = '';
+
+      // Si viene con espacio, separar fecha y hora
+      if (h.includes(' ')) {
+        const partes = h.split(' ');
+        fecha = partes[0];
+        hora = partes.slice(1).join(' '); // juntar por si viene "07:23 PM"
+      } else {
+        // Si viene solo fecha en UTC o 24h
+        const dateObj = new Date(h);
+        const fh = formatFechaHora(dateObj);
+        fecha = fh.fecha;
+        hora = fh.hora;
+      }
+
       horariosHtml += `<p><strong>Hora:</strong> ${hora}</p><p><strong>Fecha:</strong> ${fecha}</p>`;
     });
   }
 
-  // Cambiar "Título" según tipo
-  let tituloLabel = tipo === 'control' ? 'Especialidad' : 'Medicamento';
+  // Ajustar etiqueta según tipo
+  const tituloLabel = tipo === 'control' ? 'Especialidad' : 'Medicamento';
 
   // Mensaje especial solo para controles
   let mensajePersona = '';
@@ -43,6 +69,7 @@ const sendReminderEmail = async (to, subject, data = {}) => {
     mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes una cita pendiente.</p>`;
   }
 
+  // HTML completo del correo
   const html = `
     <div style="background-color: #f4f4f4; padding: 40px 0; font-family: Arial, sans-serif; color: #333;">
       <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
@@ -52,7 +79,7 @@ const sendReminderEmail = async (to, subject, data = {}) => {
         </div>
 
         <div style="margin-top: 20px; font-size: 16px; line-height: 1.6;">
-          ${mensajePersona}  <!-- mensaje para control -->
+          ${mensajePersona}
 
           <p><strong>${tituloLabel}:</strong> ${titulo}</p>
           <p><strong>Descripción:</strong> ${descripcion}</p>
