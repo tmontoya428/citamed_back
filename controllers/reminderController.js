@@ -4,20 +4,23 @@ const InfoUser = require("../models/InfoUser");
 const sendReminderEmail = require("../utils/sendEmail");
 const schedule = require("node-schedule");
 
-// 📌 Función para formatear fecha y hora
+// 📌 Formatear fecha y hora en 12h AM/PM
 const formatFechaHora = (date) => {
   const fecha = date.toLocaleDateString("es-CO");
-  const hora = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  const hora = date.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true, // AM/PM
+  });
   return { fecha, hora };
 };
 
-// 📌 Función para programar envíos diarios/semanales
-const programarEnvio = (frecuencia, horarios, fechaNormalizada, email, reminderData) => {
-  horarios.forEach((horaStr) => {
-    const [h, m] = horaStr.split(":").map(Number);
+// 📌 Programar envíos diarios/semanales
+const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, reminderData) => {
+  horariosObj.forEach(({ hour, minute }) => {
     const rule = new schedule.RecurrenceRule();
-    rule.hour = h;
-    rule.minute = m;
+    rule.hour = hour; 
+    rule.minute = minute;
     rule.tz = "America/Bogota";
 
     if (frecuencia === "Semanal") {
@@ -39,7 +42,7 @@ const programarEnvio = (frecuencia, horarios, fechaNormalizada, email, reminderD
   });
 };
 
-// 📌 Función para enviar recordatorios personalizados
+// 📌 Recordatorios personalizados
 const enviarRecordatorioPersonalizado = async (fechaNormalizada, intervaloPersonalizado, email, reminderData) => {
   let intervalMs = intervaloPersonalizado === "2min" ? 2 * 60 * 1000 : 2 * 60 * 60 * 1000;
   let nextTime = new Date(fechaNormalizada);
@@ -53,7 +56,7 @@ const enviarRecordatorioPersonalizado = async (fechaNormalizada, intervaloPerson
       horarios: [horarioCompleto],
     });
 
-    console.log(`📩 Recordatorio Personalizada enviado a ${email} en ${horarioCompleto}`);
+    console.log(`📩 Recordatorio Personalizado enviado a ${email} en ${horarioCompleto}`);
     nextTime = new Date(nextTime.getTime() + intervalMs);
   };
 
@@ -63,7 +66,8 @@ const enviarRecordatorioPersonalizado = async (fechaNormalizada, intervaloPerson
     setInterval(sendCustomReminder, intervalMs);
   }, delay > 0 ? delay : 0);
 
-  return [formatFechaHora(fechaNormalizada).fecha + " " + formatFechaHora(fechaNormalizada).hora];
+  const { fecha, hora } = formatFechaHora(fechaNormalizada);
+  return [`${fecha} ${hora}`];
 };
 
 // 📌 Crear recordatorio
@@ -78,7 +82,6 @@ const crearRecordatorio = async (req, res) => {
       descripcion,
       frecuencia,
       tipo,
-      horarios,
       dosis,
       unidad,
       cantidadDisponible,
@@ -91,8 +94,6 @@ const crearRecordatorio = async (req, res) => {
     if (!email) return res.status(400).json({ message: "Usuario sin correo válido" });
 
     const fechaNormalizada = fecha ? new Date(fecha) : new Date();
-
-    // Obtenemos nombre completo de la persona
     const nombreCompleto = info?.name ? `${info.name} ${info.lastName || ''}`.trim() : "Paciente";
 
     const reminderData = {
@@ -119,23 +120,29 @@ const crearRecordatorio = async (req, res) => {
       cantidadDisponible,
     });
 
-    // 🔹 Recordatorios Personalizados
     if (frecuencia === "Personalizada" && intervaloPersonalizado) {
+      // AM/PM para mostrar y enviar correo
       reminder.horarios = await enviarRecordatorioPersonalizado(fechaNormalizada, intervaloPersonalizado, email, reminderData);
-    }
-    // 🔹 Recordatorios Diarios o Semanales
-    else if (frecuencia === "Diaria" || frecuencia === "Semanal") {
-      // Extraemos hora y minuto de la fecha enviada
-      const h = fechaNormalizada.getHours();
-      const m = fechaNormalizada.getMinutes();
-      const horaStr = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    } else if (frecuencia === "Diaria" || frecuencia === "Semanal") {
+      const { hora } = formatFechaHora(fechaNormalizada);
+      reminder.horarios = [hora]; // AM/PM para DB
 
-      reminder.horarios = [horaStr]; // Guardamos solo la hora en la DB
-      programarEnvio(frecuencia, [horaStr], fechaNormalizada, email, reminderData);
+      // Hora 24h para node-schedule
+      const hour24 = fechaNormalizada.getHours();
+      const minute = fechaNormalizada.getMinutes();
+      programarEnvio(frecuencia, [{ hour: hour24, minute }], fechaNormalizada, email, reminderData);
     }
 
     await reminder.save();
-    res.status(201).json(reminder);
+
+    // Formatear fecha/hora al responder
+    const { fecha: fForm, hora: hForm } = formatFechaHora(fechaNormalizada);
+    res.status(201).json({
+      ...reminder.toObject(),
+      fechaFormateada: fForm,
+      horaFormateada: hForm,
+    });
+
   } catch (error) {
     console.error("❌ Error en crearRecordatorio:", error);
     res.status(500).json({ message: "Error al crear el recordatorio", error: error.message });
@@ -149,7 +156,17 @@ const obtenerRecordatoriosPorUsuario = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const recordatorios = await Reminder.find({ userId });
-    res.json(recordatorios);
+
+    const recordatoriosFormateados = recordatorios.map(r => {
+      const { fecha, hora } = formatFechaHora(new Date(r.fecha));
+      return {
+        ...r.toObject(),
+        fechaFormateada: fecha,
+        horaFormateada: hora,
+      };
+    });
+
+    res.json(recordatoriosFormateados);
   } catch (error) {
     console.error("❌ Error en obtenerRecordatorios:", error);
     res.status(500).json({ message: "Error al obtener los recordatorios" });
@@ -175,7 +192,14 @@ const actualizarRecordatorio = async (req, res) => {
 
     if (!updated) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
-    res.json(updated);
+    // Formatear fecha/hora al responder
+    const { fecha: fForm, hora: hForm } = formatFechaHora(new Date(updated.fecha));
+
+    res.json({
+      ...updated.toObject(),
+      fechaFormateada: fForm,
+      horaFormateada: hForm,
+    });
   } catch (error) {
     console.error("❌ Error en actualizarRecordatorio:", error);
     res.status(500).json({ message: "Error al actualizar el recordatorio" });
