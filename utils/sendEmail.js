@@ -41,12 +41,14 @@ const sendReminderEmail = async (to, subject, data = {}) => {
           <p><strong>Descripción:</strong> ${descripcion}</p>
           <p><strong>Frecuencia:</strong> ${frecuencia}</p>`;
 
-  if (tipo === 'medicamento') {
-    html += `
-          <p><strong>Dosis:</strong> ${dosis} ${unidad}</p>
-          <p><strong>Horario(s):</strong> ${Array.isArray(horarios) ? horarios.join(', ') : horarios}</p>
-          <p><strong>Cantidad disponible:</strong> ${cantidadDisponible}</p>`;
-  }
+
+if (tipo === 'medicamento' || tipo === 'control') {
+  html += `
+      ${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
+      ${horarios ? `<p><strong>Horario(s):</strong> ${Array.isArray(horarios) ? horarios.join(', ') : horarios}</p>` : ''}
+      ${cantidadDisponible ? `<p><strong>Cantidad disponible:</strong> ${cantidadDisponible}</p>` : ''}`;
+}
+
 
   html += `
         </div>
