@@ -3,6 +3,7 @@ const Reminder = require("../models/reminder");
 const User = require("../models/User");
 const InfoUser = require("../models/InfoUser");
 const sendReminderEmail = require("./sendEmail");
+const sendReminderSMS = require("./sendSMS");   // Solo SMS
 
 async function cargarRecordatorios() {
   try {
@@ -15,8 +16,9 @@ async function cargarRecordatorios() {
       const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
       const usernameEmail = isValidEmail(user?.username) ? user.username : null;
       const email = info?.email || usernameEmail;
+      const phone = info?.phone; // número del usuario
 
-      if (!email) return;
+      if (!email && !phone) return;
 
       reminder.horarios.forEach((hora) => {
         const [h, m] = hora.split(":").map(Number);
@@ -25,13 +27,17 @@ async function cargarRecordatorios() {
           const fechaRecordatorio = new Date(reminder.fecha);
           fechaRecordatorio.setHours(h, m, 0, 0);
 
-          // 📌 Evita programar recordatorios pasados
           if (fechaRecordatorio > new Date()) {
             schedule.scheduleJob(fechaRecordatorio, async () => {
-              await sendReminderEmail(email, "⏰ Recordatorio de medicamento", {
-                ...reminder.toObject(),
-              });
-              console.log(`📩 Recordatorio enviado a ${email} el ${fechaRecordatorio}`);
+              if (email) {
+                await sendReminderEmail(email, "⏰ Recordatorio de medicamento", {
+                  ...reminder.toObject(),
+                });
+              }
+              if (phone) {
+                await sendReminderSMS(phone, `⏰ Recordatorio: ${reminder.medicamento || "medicamento"} a las ${hora}`);
+              }
+              console.log(`📩 Recordatorio enviado a ${email || phone} el ${fechaRecordatorio}`);
             });
           }
         } else if (reminder.frecuencia === "Diaria") {
@@ -41,11 +47,16 @@ async function cargarRecordatorios() {
           rule.tz = "America/Bogota";
 
           schedule.scheduleJob(rule, async () => {
-            await sendReminderEmail(email, "⏰ Recordatorio diario de medicamento", {
-              ...reminder.toObject(),
-              fecha: new Date(),
-            });
-            console.log(`📩 Recordatorio diario enviado a ${email} a las ${hora}`);
+            if (email) {
+              await sendReminderEmail(email, "⏰ Recordatorio diario de medicamento", {
+                ...reminder.toObject(),
+                fecha: new Date(),
+              });
+            }
+            if (phone) {
+              await sendReminderSMS(phone, `⏰ Recordatorio diario: ${reminder.medicamento || "medicamento"} a las ${hora}`);
+            }
+            console.log(`📲 Recordatorio enviado a ${email || phone} a las ${hora}`);
           });
         } else if (reminder.frecuencia === "Semanal") {
           const rule = new schedule.RecurrenceRule();
@@ -55,13 +66,16 @@ async function cargarRecordatorios() {
           rule.tz = "America/Bogota";
 
           schedule.scheduleJob(rule, async () => {
-            await sendReminderEmail(email, "⏰ Recordatorio semanal de medicamento", {
-              ...reminder.toObject(),
-              fecha: new Date(),
-            });
-            console.log(
-              `📩 Recordatorio semanal enviado a ${email} cada ${rule.dayOfWeek} a las ${hora}`
-            );
+            if (email) {
+              await sendReminderEmail(email, "⏰ Recordatorio semanal de medicamento", {
+                ...reminder.toObject(),
+                fecha: new Date(),
+              });
+            }
+            if (phone) {
+              await sendReminderSMS(phone, `⏰ Recordatorio semanal: ${reminder.medicamento || "medicamento"} a las ${hora}`);
+            }
+            console.log(`📲 Recordatorio semanal enviado a ${email || phone} cada ${rule.dayOfWeek} a las ${hora}`);
           });
         }
       });
