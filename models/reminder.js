@@ -38,6 +38,10 @@ const reminderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+   completed: {
+    type: Boolean,
+    default: false, 
+  },
 });
 
 module.exports = mongoose.model("Reminder", reminderSchema);
