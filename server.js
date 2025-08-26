@@ -8,6 +8,7 @@ const loginRoutes = require('./routes/loginRoutes');
 const adminRegistrationRoutes = require('./routes/adminRegistrationRoutes');
 const reminderRoutes = require('./routes/reminderRoutes'); 
 const { cargarRecordatorios } = require("./utils/scheduler");
+const infoUserRoutes = require ('./routes/infoUserRoutes')
 
 dotenv.config();
 const app = express();
@@ -30,6 +31,8 @@ app.use('/api/register', registerUserRoutes);
 app.use('/api/login', loginRoutes);
 app.use('/api/admin', adminRegistrationRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use("/api/info-user", infoUserRoutes);
+
 
 // Ruta no encontrada
 app.use((req, res, next) => {
