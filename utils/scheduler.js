@@ -1,4 +1,4 @@
-const schedule = require("node-schedule");
+/*const schedule = require("node-schedule");
 const Reminder = require("../models/reminder");
 const User = require("../models/User");
 const InfoUser = require("../models/InfoUser");
@@ -73,4 +73,4 @@ async function cargarRecordatorios() {
   }
 }
 
-module.exports = { cargarRecordatorios };
+module.exports = { cargarRecordatorios };*/

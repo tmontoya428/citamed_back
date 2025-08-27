@@ -135,6 +135,10 @@ const crearRecordatorio = async (req, res) => {
 
     await reminder.save();
 
+        const { scheduleReminder } = require('../utils/agenda');
+    await scheduleReminder(reminder);
+
+
     // Formatear fecha/hora al responder
     const { fecha: fForm, hora: hForm } = formatFechaHora(fechaNormalizada);
     res.status(201).json({
