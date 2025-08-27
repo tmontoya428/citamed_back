@@ -19,7 +19,7 @@ const authMiddleware = (req, res, next) => {
 
     // ✅ Guardar el objeto completo del usuario autenticado
     req.user = {
-      id: verified.userId,
+      userId: verified.userId,
       role: verified.role,
     };
 
