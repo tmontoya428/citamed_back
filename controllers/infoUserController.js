@@ -3,7 +3,7 @@ const InfoUser = require('../models/InfoUser');
 // ✅ Obtener info del usuario autenticado
 const getInfoUser = async (req, res) => {
   try {
-    const info = await InfoUser.findOne({ userId: req.user.userId }); // <-- corregido
+    const info = await InfoUser.findOne({ userId: req.user.id }); // <-- corregido
     if (!info) return res.status(404).json({ msg: 'Información no encontrada' });
     res.json(info);
   } catch (error) {
@@ -16,7 +16,7 @@ const getInfoUser = async (req, res) => {
 const updateInfoUser = async (req, res) => {
   try {
     const updatedInfo = await InfoUser.findOneAndUpdate(
-      { userId: req.user.userId }, // <-- corregido
+      { userId: req.user.id }, // <-- corregido
       req.body,
       { new: true }
     );

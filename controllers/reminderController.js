@@ -15,8 +15,8 @@ const formatFechaHora = (date) => {
   return { fecha, hora };
 };
 
-// 📌 Programar envíos diarios/semanales (corrigiendo controles)
-const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, reminderData, tipo) => {
+// 📌 Programar envíos diarios/semanales
+const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, reminderData) => {
   horariosObj.forEach(({ hour, minute }) => {
     const rule = new schedule.RecurrenceRule();
     rule.hour = hour; 
@@ -27,55 +27,18 @@ const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, remind
       rule.dayOfWeek = fechaNormalizada.getDay();
     }
 
-    // Si es tipo CONTROL → programar desde la fechaNormalizada, no siempre hoy
-    if (tipo === "control") {
-      const primeraEjecucion = new Date(fechaNormalizada);
-      primeraEjecucion.setHours(hour, minute, 0, 0);
+    schedule.scheduleJob(rule, async () => {
+      const now = new Date();
+      const { fecha, hora } = formatFechaHora(now);
+      const horarioActual = `${fecha} ${hora}`;
 
-      // Si la primera ejecución ya pasó hoy, moverla al siguiente intervalo
-      if (primeraEjecucion < new Date()) {
-        if (frecuencia === "Diaria") {
-          primeraEjecucion.setDate(primeraEjecucion.getDate() + 1);
-        } else if (frecuencia === "Semanal") {
-          primeraEjecucion.setDate(primeraEjecucion.getDate() + 7);
-        }
-      }
-
-      schedule.scheduleJob(primeraEjecucion, async function sendAndReschedule() {
-        const now = new Date();
-        const { fecha, hora } = formatFechaHora(now);
-        const horarioActual = `${fecha} ${hora}`;
-
-        await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
-          ...reminderData,
-          horarios: [horarioActual],
-        });
-
-        console.log(`📩 Recordatorio de CONTROL ${frecuencia} enviado a ${email} en ${horarioActual}`);
-
-        // Reprogramar siguiente (mantener periodicidad)
-        if (frecuencia === "Diaria") {
-          this.reschedule(new schedule.RecurrenceRule(null, null, null, null, minute, hour, "America/Bogota"));
-        } else if (frecuencia === "Semanal") {
-          this.reschedule(rule);
-        }
+      await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
+        ...reminderData,
+        horarios: [horarioActual],
       });
 
-    } else {
-      // Medicamentos: mantener lógica actual
-      schedule.scheduleJob(rule, async () => {
-        const now = new Date();
-        const { fecha, hora } = formatFechaHora(now);
-        const horarioActual = `${fecha} ${hora}`;
-
-        await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
-          ...reminderData,
-          horarios: [horarioActual],
-        });
-
-        console.log(`📩 Recordatorio ${frecuencia} enviado a ${email} en ${horarioActual}`);
-      });
-    }
+      console.log(`📩 Recordatorio ${frecuencia} enviado a ${email} en ${horarioActual}`);
+    });
   });
 };
 
@@ -167,7 +130,7 @@ const crearRecordatorio = async (req, res) => {
       // Hora 24h para node-schedule
       const hour24 = fechaNormalizada.getHours();
       const minute = fechaNormalizada.getMinutes();
-      programarEnvio(frecuencia, [{ hour: hour24, minute }], fechaNormalizada, email, reminderData, tipo);
+      programarEnvio(frecuencia, [{ hour: hour24, minute }], fechaNormalizada, email, reminderData);
     }
 
     await reminder.save();
@@ -282,6 +245,7 @@ const marcarRecordatorioCompletado = async (req, res) => {
     res.status(500).json({ message: "Error al actualizar el estado del recordatorio" });
   }
 };
+
 
 module.exports = {
   crearRecordatorio,
