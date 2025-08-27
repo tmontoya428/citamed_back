@@ -2,7 +2,9 @@ const Reminder = require("../models/reminder");
 const User = require("../models/User");
 const InfoUser = require("../models/InfoUser");
 const sendReminderEmail = require("../utils/sendEmail");
+const sendReminderSMS = require("../utils/sendSMS");
 const schedule = require("node-schedule");
+const { programarRecordatorioAgenda } = require('../utils/agenda');
 
 // 📌 Formatear fecha y hora en 12h AM/PM
 const formatFechaHora = (date) => {
@@ -11,12 +13,14 @@ const formatFechaHora = (date) => {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true, // AM/PM
+    hour12: true, 
   });
   return { fecha, hora };
 };
 
 // 📌 Programar envíos diarios/semanales
-const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, reminderData) => {
+
+const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, telefono, reminderData, tipo) => {
   horariosObj.forEach(({ hour, minute }) => {
     const rule = new schedule.RecurrenceRule();
     rule.hour = hour; 
@@ -39,6 +43,53 @@ const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, remind
 
       console.log(`📩 Recordatorio ${frecuencia} enviado a ${email} en ${horarioActual}`);
     });
+    if (frecuencia === "Semanal") rule.dayOfWeek = fechaNormalizada.getDay();
+
+    if (tipo === "control") {
+      const primeraEjecucion = new Date(fechaNormalizada);
+      primeraEjecucion.setHours(hour, minute, 0, 0);
+
+      if (primeraEjecucion < new Date()) {
+        if (frecuencia === "Diaria") primeraEjecucion.setDate(primeraEjecucion.getDate() + 1);
+        else if (frecuencia === "Semanal") primeraEjecucion.setDate(primeraEjecucion.getDate() + 7);
+      }
+
+      schedule.scheduleJob(primeraEjecucion, async function sendAndReschedule() {
+        const now = new Date();
+        const { fecha, hora } = formatFechaHora(now);
+        const horarioActual = `${fecha} ${hora}`;
+
+        await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
+          ...reminderData,
+          horarios: [horarioActual],
+        });
+
+        if (telefono) await sendReminderSMS(telefono, reminderData);
+
+        console.log(`📩 Recordatorio de CONTROL ${frecuencia} enviado a ${email} en ${horarioActual}`);
+
+        if (frecuencia === "Diaria") {
+          this.reschedule(new schedule.RecurrenceRule(null, null, null, null, minute, hour, "America/Bogota"));
+        } else if (frecuencia === "Semanal") this.reschedule(rule);
+      });
+
+    } else {
+      // Medicamentos
+      schedule.scheduleJob(rule, async () => {
+        const now = new Date();
+        const { fecha, hora } = formatFechaHora(now);
+        const horarioActual = `${fecha} ${hora}`;
+
+        await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
+          ...reminderData,
+          horarios: [horarioActual],
+        });
+
+        if (telefono) await sendReminderSMS(telefono, reminderData);
+
+        console.log(`📩 Recordatorio ${frecuencia} enviado a ${email} en ${horarioActual}`);
+      });
+    }
   });
 };
 
@@ -133,10 +184,13 @@ const crearRecordatorio = async (req, res) => {
       programarEnvio(frecuencia, [{ hour: hour24, minute }], fechaNormalizada, email, reminderData);
     }
 
-    await reminder.save();
+    const { programarRecordatorioAgenda } = require('../utils/agenda');
 
-        const { scheduleReminder } = require('../utils/agenda');
-    await scheduleReminder(reminder);
+// Después de guardar el reminder en MongoDB
+await reminder.save();
+
+// Programar en Agenda
+await programarRecordatorioAgenda(reminder);
 
 
     // Formatear fecha/hora al responder
@@ -217,7 +271,6 @@ const eliminarRecordatorio = async (req, res) => {
     const userId = req.user?.id;
 
     const deleted = await Reminder.findOneAndDelete({ _id: id, userId });
-
     if (!deleted) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
     res.json({ message: "✅ Recordatorio eliminado" });
@@ -249,7 +302,6 @@ const marcarRecordatorioCompletado = async (req, res) => {
     res.status(500).json({ message: "Error al actualizar el estado del recordatorio" });
   }
 };
-
 
 module.exports = {
   crearRecordatorio,
