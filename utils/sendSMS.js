@@ -1,21 +1,21 @@
+// sendSMS.js
 const twilio = require("twilio");
 
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-// Función para formatear fecha y hora en 12h AM/PM
 const formatFechaHora = (date) => {
   const fecha = date.toLocaleDateString("es-CO");
   const hora = date.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true, // AM/PM
+    hour12: true,
   });
   return { fecha, hora };
 };
 
 async function sendReminderSMS(to, data) {
   try {
-    // ✅ Normalizar número
+    // Normalizar número
     const numero = to.startsWith('+') ? to : `+57${to}`;
 
     const {
@@ -52,11 +52,8 @@ async function sendReminderSMS(to, data) {
 
     const tituloLabel = tipo === 'control' ? 'Especialidad' : 'Medicamento';
     let mensajePersona = '';
-    if (tipo === 'control' && nombrePersona) {
-      mensajePersona = `Estimad@ ${nombrePersona}, te recordamos que tienes una cita pendiente.\n`;
-    }
+    if (nombrePersona) mensajePersona = `Estimad@ ${nombrePersona},\n`;
 
-    // Mensaje completo
     const message = `
 📅 Recordatorio de ${tipo === 'medicamento' ? 'medicación' : 'control'}
 ${mensajePersona}
@@ -68,6 +65,9 @@ ${horariosTexto}
 ${cantidadDisponible ? `Cantidad disponible: ${cantidadDisponible}` : ''}
 Gracias por confiar en CITAMED ❤️
     `.trim();
+
+    console.log("Enviando SMS a:", numero);
+    console.log("Contenido SMS:", message);
 
     const response = await client.messages.create({
       body: message,
