@@ -21,12 +21,7 @@ async function sendReminderSMS(to, data) {
     const {
       tipo,
       titulo,
-      descripcion,
-      frecuencia,
-      dosis,
-      unidad,
       horarios,
-      cantidadDisponible,
       nombrePersona,
     } = data;
 
@@ -36,11 +31,14 @@ async function sendReminderSMS(to, data) {
       horarios.forEach((h) => {
         let fecha = '';
         let hora = '';
+
+        // Si viene con espacio, separar fecha y hora
         if (h.includes(' ')) {
           const partes = h.split(' ');
           fecha = partes[0];
           hora = partes.slice(1).join(' ');
         } else {
+         // Si viene solo fecha en UTC o 24h    
           const dateObj = new Date(h);
           const fh = formatFechaHora(dateObj);
           fecha = fh.fecha;
@@ -54,15 +52,12 @@ async function sendReminderSMS(to, data) {
     let mensajePersona = '';
     if (nombrePersona) mensajePersona = `Estimad@ ${nombrePersona},\n`;
 
+    // ✅ Solo mensaje simplificado
     const message = `
-📅 Recordatorio de ${tipo === 'medicamento' ? 'medicación' : 'control'}
+📅 Recordatorio de ${tipo === 'medicamento' ? 'medicación' : 'control'} 
 ${mensajePersona}
 ${tituloLabel}: ${titulo}
-Descripción: ${descripcion || ''}
-Frecuencia: ${frecuencia || ''}
-${dosis ? `Dosis: ${dosis} ${unidad || ''}` : ''}
 ${horariosTexto}
-${cantidadDisponible ? `Cantidad disponible: ${cantidadDisponible}` : ''}
 Gracias por confiar en CITAMED ❤️
     `.trim();
 
