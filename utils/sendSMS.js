@@ -31,14 +31,11 @@ async function sendReminderSMS(to, data) {
       horarios.forEach((h) => {
         let fecha = '';
         let hora = '';
-
-        // Si viene con espacio, separar fecha y hora
         if (h.includes(' ')) {
           const partes = h.split(' ');
           fecha = partes[0];
           hora = partes.slice(1).join(' ');
         } else {
-         // Si viene solo fecha en UTC o 24h    
           const dateObj = new Date(h);
           const fh = formatFechaHora(dateObj);
           fecha = fh.fecha;
@@ -57,6 +54,7 @@ async function sendReminderSMS(to, data) {
 📅 Recordatorio de ${tipo === 'medicamento' ? 'medicación' : 'control'} 
 ${mensajePersona}
 ${tituloLabel}: ${titulo}
+
 ${horariosTexto}
 Gracias por confiar en CITAMED ❤️
     `.trim();

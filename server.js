@@ -30,6 +30,7 @@ app.use('/api/register', registerUserRoutes);
 app.use('/api/login', loginRoutes);
 app.use('/api/admin', adminRegistrationRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use("/api/info-user", require("./routes/infoUserRoutes"));
 
 // Ruta no encontrada
 app.use((req, res, next) => {
