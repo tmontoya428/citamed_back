@@ -1,8 +1,7 @@
 const Reminder = require("../models/reminder");
 const User = require("../models/User");
 const InfoUser = require("../models/InfoUser");
-const sendReminderEmail = require("../utils/sendEmail");
-const schedule = require("node-schedule");
+const { agenda, scheduleReminder } = require("../utils/agenda");
 
 // 📌 Formatear fecha y hora en 12h AM/PM
 const formatFechaHora = (date) => {
@@ -10,64 +9,9 @@ const formatFechaHora = (date) => {
   const hora = date.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true, // AM/PM
+    hour12: true,
   });
   return { fecha, hora };
-};
-
-// 📌 Programar envíos diarios/semanales
-const programarEnvio = (frecuencia, horariosObj, fechaNormalizada, email, reminderData) => {
-  horariosObj.forEach(({ hour, minute }) => {
-    const rule = new schedule.RecurrenceRule();
-    rule.hour = hour; 
-    rule.minute = minute;
-    rule.tz = "America/Bogota";
-
-    if (frecuencia === "Semanal") {
-      rule.dayOfWeek = fechaNormalizada.getDay();
-    }
-
-    schedule.scheduleJob(rule, async () => {
-      const now = new Date();
-      const { fecha, hora } = formatFechaHora(now);
-      const horarioActual = `${fecha} ${hora}`;
-
-      await sendReminderEmail(email, `⏰ Recordatorio ${frecuencia.toLowerCase()}`, {
-        ...reminderData,
-        horarios: [horarioActual],
-      });
-
-      console.log(`📩 Recordatorio ${frecuencia} enviado a ${email} en ${horarioActual}`);
-    });
-  });
-};
-
-// 📌 Recordatorios personalizados
-const enviarRecordatorioPersonalizado = async (fechaNormalizada, intervaloPersonalizado, email, reminderData) => {
-  let intervalMs = intervaloPersonalizado === "2min" ? 2 * 60 * 1000 : 2 * 60 * 60 * 1000;
-  let nextTime = new Date(fechaNormalizada);
-
-  const sendCustomReminder = async () => {
-    const { fecha, hora } = formatFechaHora(nextTime);
-    const horarioCompleto = `${fecha} ${hora}`;
-
-    await sendReminderEmail(email, "⏰ Recordatorio de medicamento", {
-      ...reminderData,
-      horarios: [horarioCompleto],
-    });
-
-    console.log(`📩 Recordatorio Personalizado enviado a ${email} en ${horarioCompleto}`);
-    nextTime = new Date(nextTime.getTime() + intervalMs);
-  };
-
-  const delay = nextTime - new Date();
-  setTimeout(() => {
-    sendCustomReminder();
-    setInterval(sendCustomReminder, intervalMs);
-  }, delay > 0 ? delay : 0);
-
-  const { fecha, hora } = formatFechaHora(fechaNormalizada);
-  return [`${fecha} ${hora}`];
 };
 
 // 📌 Crear recordatorio
@@ -81,11 +25,11 @@ const crearRecordatorio = async (req, res) => {
       fecha,
       descripcion,
       frecuencia,
+      intervaloPersonalizado,
       tipo,
       dosis,
       unidad,
       cantidadDisponible,
-      intervaloPersonalizado,
     } = req.body;
 
     const info = await InfoUser.findOne({ userId });
@@ -94,52 +38,27 @@ const crearRecordatorio = async (req, res) => {
     if (!email) return res.status(400).json({ message: "Usuario sin correo válido" });
 
     const fechaNormalizada = fecha ? new Date(fecha) : new Date();
-    const nombreCompleto = info?.name ? `${info.name} ${info.lastName || ''}`.trim() : "Paciente";
 
-    const reminderData = {
-      tipo,
-      titulo,
-      descripcion,
-      frecuencia,
-      dosis,
-      unidad,
-      cantidadDisponible,
-      nombrePersona: nombreCompleto,
-    };
-
-    let reminder = new Reminder({
+    const reminder = new Reminder({
       userId,
       tipo,
       titulo,
       fecha: fechaNormalizada,
       descripcion,
       frecuencia,
+      intervaloPersonalizado,
       horarios: [],
       dosis,
       unidad,
       cantidadDisponible,
+      completed: false,
     });
-
-    if (frecuencia === "Personalizada" && intervaloPersonalizado) {
-      // AM/PM para mostrar y enviar correo
-      reminder.horarios = await enviarRecordatorioPersonalizado(fechaNormalizada, intervaloPersonalizado, email, reminderData);
-    } else if (frecuencia === "Diaria" || frecuencia === "Semanal") {
-      const { hora } = formatFechaHora(fechaNormalizada);
-      reminder.horarios = [hora]; // AM/PM para DB
-
-      // Hora 24h para node-schedule
-      const hour24 = fechaNormalizada.getHours();
-      const minute = fechaNormalizada.getMinutes();
-      programarEnvio(frecuencia, [{ hour: hour24, minute }], fechaNormalizada, email, reminderData);
-    }
 
     await reminder.save();
 
-        const { scheduleReminder } = require('../utils/agenda');
+    // Programar recordatorio en Agenda
     await scheduleReminder(reminder);
 
-
-    // Formatear fecha/hora al responder
     const { fecha: fForm, hora: hForm } = formatFechaHora(fechaNormalizada);
     res.status(201).json({
       ...reminder.toObject(),
@@ -184,8 +103,7 @@ const actualizarRecordatorio = async (req, res) => {
     const userId = req.user?.id;
 
     if (req.body.fecha) {
-      const f = new Date(req.body.fecha);
-      req.body.fecha = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+      req.body.fecha = new Date(req.body.fecha);
     }
 
     const updated = await Reminder.findOneAndUpdate(
@@ -196,7 +114,6 @@ const actualizarRecordatorio = async (req, res) => {
 
     if (!updated) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
-    // Formatear fecha/hora al responder
     const { fecha: fForm, hora: hForm } = formatFechaHora(new Date(updated.fecha));
 
     res.json({
@@ -220,17 +137,28 @@ const eliminarRecordatorio = async (req, res) => {
 
     if (!deleted) return res.status(404).json({ message: "Recordatorio no encontrado" });
 
+    // Cancelar todos los jobs de Agenda relacionados
+    await agenda.start();
+    const numCanceled = await agenda.cancel({
+      $or: [
+        { 'data.reminderId': deleted._id.toString() },
+        { 'data.reminderId': deleted._id }
+      ]
+    });
+    console.log(`❌ Se cancelaron ${numCanceled} jobs de Agenda para el recordatorio ${deleted._id}`);
+
     res.json({ message: "✅ Recordatorio eliminado" });
   } catch (error) {
     console.error("❌ Error en eliminarRecordatorio:", error);
     res.status(500).json({ message: "Error al eliminar el recordatorio" });
   }
 };
+
 // 📌 Marcar recordatorio como completado o no
 const marcarRecordatorioCompletado = async (req, res) => {
   try {
     const { id } = req.params;
-    const { completed } = req.body; // true o false
+    const { completed } = req.body;
     const userId = req.user?.id;
 
     const reminder = await Reminder.findOneAndUpdate(
@@ -239,8 +167,17 @@ const marcarRecordatorioCompletado = async (req, res) => {
       { new: true }
     );
 
-    if (!reminder) {
-      return res.status(404).json({ message: "Recordatorio no encontrado" });
+    if (!reminder) return res.status(404).json({ message: "Recordatorio no encontrado" });
+
+    if (completed) {
+      await agenda.start();
+      const numCanceled = await agenda.cancel({
+        $or: [
+          { 'data.reminderId': reminder._id.toString() },
+          { 'data.reminderId': reminder._id }
+        ]
+      });
+      console.log(`❌ Se cancelaron ${numCanceled} jobs de Agenda para el recordatorio ${reminder._id}`);
     }
 
     res.json(reminder);
@@ -249,7 +186,6 @@ const marcarRecordatorioCompletado = async (req, res) => {
     res.status(500).json({ message: "Error al actualizar el estado del recordatorio" });
   }
 };
-
 
 module.exports = {
   crearRecordatorio,
