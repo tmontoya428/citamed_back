@@ -24,8 +24,7 @@
     "mongoose": "^8.7.2",
     "node-fetch": "^2.7.0",
     "node-schedule": "^2.1.1",
-    "nodemailer": "^7.0.5",
-    "twilio": "^5.8.0"
+    "nodemailer": "^7.0.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
