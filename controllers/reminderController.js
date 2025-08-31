@@ -3,10 +3,11 @@ const User = require("../models/User");
 const InfoUser = require("../models/InfoUser");
 const { agenda, scheduleReminder } = require("../utils/agenda");
 
-// 📌 Formatear fecha y hora en 12h AM/PM
+// 📌 Formatear fecha y hora en 12h AM/PM ajustando a zona horaria local
 const formatFechaHora = (date) => {
-  const fecha = date.toLocaleDateString("es-CO");
-  const hora = date.toLocaleTimeString("es-CO", {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  const fecha = localDate.toLocaleDateString("es-CO");
+  const hora = localDate.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
