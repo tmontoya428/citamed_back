@@ -154,30 +154,6 @@ const eliminarRecordatorio = async (req, res) => {
     res.status(500).json({ message: "Error al eliminar el recordatorio" });
   }
 };
-// 📌 Marcar recordatorio como completado o no
-const marcarRecordatorioCompletado = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { completed } = req.body; // true o false
-    const userId = req.user?.id;
-
-    const reminder = await Reminder.findOneAndUpdate(
-      { _id: id, userId },
-      { completed },
-      { new: true }
-    );
-
-    if (!reminder) {
-      return res.status(404).json({ message: "Recordatorio no encontrado" });
-    }
-
-    res.json(reminder);
-  } catch (error) {
-    console.error("❌ Error en marcarRecordatorioCompletado:", error);
-    res.status(500).json({ message: "Error al actualizar el estado del recordatorio" });
-  }
-};
-
 
 // 📌 Marcar recordatorio como completado o no
 const marcarRecordatorioCompletado = async (req, res) => {
