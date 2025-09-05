@@ -36,6 +36,8 @@ app.use('/api/login', loginRoutes);
 app.use('/api/admin', adminRegistrationRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use("/api/info-user", require("./routes/infoUserRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+
 
 
 
