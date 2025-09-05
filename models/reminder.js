@@ -1,39 +1,52 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const reminderSchema = new mongoose.Schema({
   tipo: {
     type: String, // "control" o "medicamento"
-    required: true
+    required: true,
   },
   titulo: {
     type: String,
-    required: true
+    required: true,
+  },
+  fecha: {
+    type: Date,
+    required: true,
   },
   descripcion: {
     type: String,
-    required: true
+    required: true,
   },
   frecuencia: {
     type: String,
-    enum: ['Diaria', 'Semanal', 'Personalizada'],
-    required: true
+    enum: ["Diaria", "Semanal", "Personalizada"],
+    required: true,
   },
   horarios: {
-    type: [String], // ["8:00 AM", "6:00 PM"]
-    default: []
+    type: [String], // ["08:00", "18:00"]
+    default: [],
   },
   dosis: Number,
   unidad: String,
   cantidadDisponible: Number,
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: "User",
+    required: true,
   },
   creadoEn: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
+   completed: {
+    type: Boolean,
+    default: false, 
+  },
+  intervaloPersonalizado: { 
+    type: String, 
+    default: null 
+  },
+
 });
 
-module.exports = mongoose.model('Reminder', reminderSchema);
+module.exports = mongoose.model("Reminder", reminderSchema);
