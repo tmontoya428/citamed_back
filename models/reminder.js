@@ -46,6 +46,10 @@ const reminderSchema = new mongoose.Schema({
     type: String, 
     default: null 
   },
+  nombrePersona: { 
+    type: String, 
+    default: "paciente",
+  },
 
 });
 
