@@ -42,6 +42,11 @@ const reminderSchema = new mongoose.Schema({
     type: Boolean,
     default: false, 
   },
+  intervaloPersonalizado: { 
+    type: String, 
+    default: null 
+  },
+
 });
 
 module.exports = mongoose.model("Reminder", reminderSchema);
