@@ -39,6 +39,7 @@ const crearRecordatorio = async (req, res) => {
     if (!email) return res.status(400).json({ message: "Usuario sin correo válido" });
 
     const fechaNormalizada = fecha ? new Date(fecha) : new Date();
+    const nombreCompleto = info?.name ? `${info.name} ${info.lastName || ''}`.trim() : "Paciente";
 
     const reminder = new Reminder({
       userId,
@@ -52,6 +53,7 @@ const crearRecordatorio = async (req, res) => {
       dosis,
       unidad,
       cantidadDisponible,
+      nombrePersona: nombreCompleto,
       completed: false,
     });
 
