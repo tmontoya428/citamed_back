@@ -65,9 +65,15 @@ const sendReminderEmail = async (to, subject, data = {}) => {
 
   // Mensaje especial solo para controles
   let mensajePersona = '';
-  if (tipo === 'control' && nombrePersona) {
-    mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes una cita pendiente.</p>`;
-  }
+  if (nombrePersona) {
+    if (tipo === 'control') {
+      mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un <strong>control pendiente</strong>.</p>`;
+    } else if (tipo === 'medicamento') {
+     mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un <strong>medicamento pendiente</strong>.</p>`;
+    } else {
+      mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un recordatorio pendiente.</p>`;
+    }
+}
 
   // HTML completo del correo
   const html = `
