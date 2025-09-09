@@ -48,7 +48,16 @@ const login = async (req, res) => {
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
 
-    res.json({ token, role: user.role });
+    // 🔹 Responder incluyendo el username como nombre
+    res.json({
+      token,
+      role: user.role,
+      user: {
+        nombre: user.username,   // 👈 mandamos el username como "nombre"
+        username: user.username,
+      },
+    });
+
   } catch (error) {
     console.error("❌ Error en login:", error);
     res.status(500).json({ msg: "Error en el servidor" });
