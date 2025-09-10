@@ -28,15 +28,15 @@ agenda.define('send-reminder', async (job) => {
   const email = info?.email || (/\S+@\S+\.\S+/.test(user?.username) ? user.username : null);
   if (!email) return;
 
-  const now = new Date();
-  const { fecha, hora } = formatFechaHora(now);
+  // ✅ Mostrar la hora REAL del evento (no la hora del recordatorio)
+  const { fecha, hora } = formatFechaHora(reminder.fecha);
 
-  await sendReminderEmail(email, `⏰ Recordatorio de medicamento`, {
+  await sendReminderEmail(email, `⏰ Recordatorio de ${reminder.tipo}`, {
     ...reminder.toObject(),
-    horarios: [`${fecha} ${hora}`],
+    horarios: [`${fecha} ${hora}`], // 👈 siempre la hora real
   });
 
-  console.log(`📩 Recordatorio enviado a ${email} en ${fecha} ${hora}`);
+  console.log(`📩 Recordatorio enviado a ${email} para el evento de las ${fecha} ${hora}`);
 });
 
 // 🔹 Mapeo de intervalos español → inglés
@@ -77,12 +77,18 @@ const scheduleReminder = async (reminder) => {
 
   const reminderIdStr = reminder._id.toString();
 
+  // ✅ Si es tipo "control", programar 1 hora antes
+  const fechaRecordatorio =
+    reminder.tipo === "control"
+      ? new Date(reminder.fecha.getTime() - 60 * 60 * 1000)
+      : reminder.fecha;
+
   // 🔹 Frecuencia diaria
   if (reminder.frecuencia === 'Diaria') {
     const primerEnvio = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    primerEnvio.schedule(reminder.fecha);
+    primerEnvio.schedule(fechaRecordatorio);
     await primerEnvio.save();
-    console.log(`📌 Primer recordatorio diario programado para ${reminder.fecha}`);
+    console.log(`📌 Primer recordatorio diario programado para ${fechaRecordatorio}`);
 
     const jobRepetitivo = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
     jobRepetitivo.repeatEvery('1 day', { skipImmediate: true });
@@ -92,9 +98,9 @@ const scheduleReminder = async (reminder) => {
   // 🔹 Frecuencia semanal
   } else if (reminder.frecuencia === 'Semanal') {
     const primerEnvio = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    primerEnvio.schedule(reminder.fecha);
+    primerEnvio.schedule(fechaRecordatorio);
     await primerEnvio.save();
-    console.log(`📌 Primer recordatorio semanal programado para ${reminder.fecha}`);
+    console.log(`📌 Primer recordatorio semanal programado para ${fechaRecordatorio}`);
 
     const jobRepetitivo = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
     jobRepetitivo.repeatEvery('1 week', { skipImmediate: true });
@@ -110,9 +116,9 @@ const scheduleReminder = async (reminder) => {
     }
 
     const primerEnvio = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    primerEnvio.schedule(reminder.fecha);
+    primerEnvio.schedule(fechaRecordatorio);
     await primerEnvio.save();
-    console.log(`📌 Primer recordatorio personalizado programado para ${reminder.fecha}`);
+    console.log(`📌 Primer recordatorio personalizado programado para ${fechaRecordatorio}`);
 
     const jobRepetitivo = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
     jobRepetitivo.repeatEvery(intervaloEn, { skipImmediate: true });
@@ -122,9 +128,9 @@ const scheduleReminder = async (reminder) => {
   // 🔹 Frecuencia única
   } else {
     const job = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    job.schedule(reminder.fecha);
+    job.schedule(fechaRecordatorio);
     await job.save();
-    console.log(`📌 Recordatorio único programado para ${reminder.fecha}`);
+    console.log(`📌 Recordatorio único programado para ${fechaRecordatorio}`);
   }
 };
 
