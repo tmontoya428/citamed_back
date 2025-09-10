@@ -43,13 +43,11 @@ const sendReminderEmail = async (to, subject, data = {}) => {
       let fecha = '';
       let hora = '';
 
-      // Si viene con espacio, separar fecha y hora
       if (h.includes(' ')) {
         const partes = h.split(' ');
         fecha = partes[0];
-        hora = partes.slice(1).join(' '); // juntar por si viene "07:23 PM"
+        hora = partes.slice(1).join(' ');
       } else {
-        // Si viene solo fecha en UTC o 24h
         const dateObj = new Date(h);
         const fh = formatFechaHora(dateObj);
         fecha = fh.fecha;
@@ -63,17 +61,17 @@ const sendReminderEmail = async (to, subject, data = {}) => {
   // Ajustar etiqueta según tipo
   const tituloLabel = tipo === 'control' ? 'Especialidad' : 'Medicamento';
 
-  // Mensaje especial solo para controles
+  // Mensaje especial
   let mensajePersona = '';
   if (nombrePersona) {
     if (tipo === 'control') {
       mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un <strong>control pendiente</strong>.</p>`;
     } else if (tipo === 'medicamento') {
-     mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un <strong>medicamento pendiente</strong>.</p>`;
+      mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un <strong>medicamento pendiente</strong>.</p>`;
     } else {
       mensajePersona = `<p>Estimad@ ${nombrePersona}, te recordamos que tienes un recordatorio pendiente.</p>`;
     }
-}
+  }
 
   // HTML completo del correo
   const html = `
@@ -90,9 +88,13 @@ const sendReminderEmail = async (to, subject, data = {}) => {
           <p><strong>${tituloLabel}:</strong> ${titulo}</p>
           <p><strong>Descripción:</strong> ${descripcion}</p>
           <p><strong>Frecuencia:</strong> ${frecuencia}</p>
-          ${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
+          ${
+            tipo === 'medicamento'
+              ? `${dosis ? `<p><strong>Dosis:</strong> ${dosis} ${unidad}</p>` : ''}
+                 ${cantidadDisponible ? `<p><strong>Cantidad disponible:</strong> ${cantidadDisponible} ${unidad}</p>` : ''}`
+              : ''
+          }
           ${horariosHtml}
-          ${cantidadDisponible ? `<p><strong>Cantidad disponible:</strong> ${cantidadDisponible}</p>` : ''}
         </div>
 
         <div style="margin-top: 30px; text-align: center; font-size: 14px; color: #777;">
