@@ -195,5 +195,6 @@ module.exports = {
   obtenerRecordatoriosPorUsuario,
   actualizarRecordatorio,
   eliminarRecordatorio,
-  marcarRecordatorioCompletado
+  marcarRecordatorioCompletado,
+  
 };
