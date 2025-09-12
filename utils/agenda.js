@@ -7,49 +7,82 @@ const sendReminderEmail = require('./sendEmail');
 const mongoConnectionString = process.env.MONGODB_URI;
 
 // 🔹 Inicializa Agenda
-const agenda = new Agenda({ db: { address: mongoConnectionString, collection: 'agendaJobs' } });
+const agenda = new Agenda({
+  db: { address: mongoConnectionString, collection: 'agendaJobs' },
+});
 
 // 🔹 Formatear fecha/hora 12h AM/PM
 const formatFechaHora = (date) => {
   const fecha = date.toLocaleDateString("es-CO");
-  const hora = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const hora = date.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
   return { fecha, hora };
 };
 
 // 🔹 Job para enviar recordatorio
-agenda.define('send-reminder', async (job) => {
+agenda.define("send-reminder", async (job) => {
   const { userId, reminderId } = job.attrs.data;
 
   const reminder = await Reminder.findById(reminderId);
   if (!reminder) return;
 
+  // ❌ Evitar ejecutar si ya no hay stock
+  if (reminder.cantidadDisponible !== undefined && reminder.cantidadDisponible <= 0) {
+    await agenda.cancel({ "data.reminderId": reminder._id.toString() });
+    console.log(`⛔ Recordatorio de "${reminder.titulo}" cancelado (sin stock disponible).`);
+    return;
+  }
+
   const user = await User.findById(userId);
   const info = await InfoUser.findOne({ userId });
-  const email = info?.email || (/\S+@\S+\.\S+/.test(user?.username) ? user.username : null);
+  const email =
+    info?.email || (/\S+@\S+\.\S+/.test(user?.username) ? user.username : null);
   if (!email) return;
 
-  const now = new Date();
-  const { fecha, hora } = formatFechaHora(now);
+  // ✅ Mostrar la hora REAL del evento (no la hora del recordatorio)
+  const { fecha, hora } = formatFechaHora(reminder.fecha);
 
-  await sendReminderEmail(email, `⏰ Recordatorio de medicamento`, {
+  await sendReminderEmail(email, `⏰ Recordatorio de ${reminder.tipo}`, {
     ...reminder.toObject(),
     horarios: [`${fecha} ${hora}`],
   });
 
-  console.log(`📩 Recordatorio enviado a ${email} en ${fecha} ${hora}`);
+  console.log(
+    `📩 Recordatorio enviado a ${email} para el evento de las ${fecha} ${hora}`
+  );
+
+  // 🔹 Descontar cantidad si aplica
+  if (reminder.cantidadDisponible !== undefined && reminder.cantidadDisponible > 0) {
+    reminder.cantidadDisponible -= 1;
+    await reminder.save();
+    console.log(
+      `💊 Cantidad restante de "${reminder.titulo}": ${reminder.cantidadDisponible}`
+    );
+
+    // ❌ Si llega a 0, cancelar futuros jobs
+    if (reminder.cantidadDisponible === 0) {
+      await agenda.cancel({ "data.reminderId": reminder._id.toString() });
+      console.log(
+        `⛔ Recordatorio de "${reminder.titulo}" cancelado (sin stock disponible).`
+      );
+    }
+  }
 });
 
 // 🔹 Mapeo de intervalos español → inglés
 const intervalMap = {
-  minuto: 'minute',
-  minutos: 'minutes',
-  hora: 'hour',
-  horas: 'hours',
-  dia: 'day',
-  días: 'days',
-  dias: 'days',
-  semana: 'week',
-  semanas: 'weeks',
+  minuto: "minute",
+  minutos: "minutes",
+  hora: "hour",
+  horas: "hours",
+  dia: "day",
+  días: "days",
+  dias: "days",
+  semana: "week",
+  semanas: "weeks",
 };
 
 // 🔹 Función para validar intervalos en español
@@ -66,16 +99,23 @@ const parseInterval = (intervalo) => {
   return unidadEn ? `${cantidad} ${unidadEn}` : null;
 };
 
-// 🔹 Función para programar un recordatorio (único o repetitivo)
+// 🔹 Función para programar un recordatorio
 const scheduleReminder = async (reminder) => {
   if (!reminder.fecha || !reminder.userId) return;
 
   await agenda.start();
 
   // ❌ Borra jobs anteriores de este recordatorio para evitar duplicados
-  await agenda.cancel({ 'data.reminderId': reminder._id.toString() });
+  await agenda.cancel({ "data.reminderId": reminder._id.toString() });
 
   const reminderIdStr = reminder._id.toString();
+  const frecuencia = reminder.frecuencia?.toLowerCase();
+
+  // ✅ Si es tipo "control", programar 1 hora antes
+  const fechaRecordatorio =
+    reminder.tipo === "control"
+      ? new Date(reminder.fecha.getTime() - 60 * 60 * 1000)
+      : reminder.fecha;
 
   // 🔹 Frecuencia diaria
   if (reminder.frecuencia === 'Diaria') {
@@ -101,30 +141,23 @@ const scheduleReminder = async (reminder) => {
     await jobRepetitivo.save();
     console.log('🔁 Recordatorio semanal repetitivo guardado');
 
-  // 🔹 Frecuencia personalizada
-  } else if (reminder.frecuencia === 'Personalizada' && reminder.intervaloPersonalizado) {
+  } else if (frecuencia === "personalizada" && reminder.intervaloPersonalizado) {
     const intervaloEn = parseInterval(reminder.intervaloPersonalizado);
     if (!intervaloEn) {
       console.error(`❌ Intervalo no válido: ${reminder.intervaloPersonalizado}`);
       return;
     }
 
-    const primerEnvio = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    primerEnvio.schedule(reminder.fecha);
-    await primerEnvio.save();
-    console.log(`📌 Primer recordatorio personalizado programado para ${reminder.fecha}`);
-
-    const jobRepetitivo = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    jobRepetitivo.repeatEvery(intervaloEn, { skipImmediate: true });
-    await jobRepetitivo.save();
-    console.log(`🔁 Recordatorio repetitivo cada ${intervaloEn} guardado`);
-
-  // 🔹 Frecuencia única
-  } else {
-    const job = agenda.create('send-reminder', { userId: reminder.userId, reminderId: reminderIdStr });
-    job.schedule(reminder.fecha);
+    const job = agenda.create("send-reminder", { userId: reminder.userId, reminderId: reminderIdStr });
+    job.repeatEvery(intervaloEn, { skipImmediate: true, startDate: fechaRecordatorio });
     await job.save();
-    console.log(`📌 Recordatorio único programado para ${reminder.fecha}`);
+    console.log(`🔁 Recordatorio personalizado cada ${intervaloEn} desde ${fechaRecordatorio}`);
+
+  } else {
+    const job = agenda.create("send-reminder", { userId: reminder.userId, reminderId: reminderIdStr });
+    job.schedule(fechaRecordatorio);
+    await job.save();
+    console.log(`📌 Recordatorio único programado para ${fechaRecordatorio}`);
   }
 };
 
@@ -137,7 +170,7 @@ const initAgenda = async () => {
     await scheduleReminder(r);
   }
 
-  console.log('✅ Agenda inicializada y recordatorios programados');
+  console.log("✅ Agenda inicializada y recordatorios programados");
 };
 
 module.exports = { agenda, initAgenda, scheduleReminder };

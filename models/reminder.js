@@ -19,7 +19,8 @@ const reminderSchema = new mongoose.Schema({
   },
   frecuencia: {
     type: String,
-    enum: ["Diaria", "Semanal", "Personalizada"],
+    enum: ["Diaria", "Semanal", "Personalizada", "Unica"],
+    default: 'Unica',
     required: true,
   },
   horarios: {
